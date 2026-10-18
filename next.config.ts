@@ -10,7 +10,7 @@ const nextConfig: NextConfig = {
   // Because there is no server work, we emit a fully static site to ./out and
   // serve it from Cloudflare as static assets (see wrangler.jsonc + `npm run
   // deploy`).
-  output: "export",
+  output: "standalone",
   images: { unoptimized: true },
 };
 

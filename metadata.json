@@ -1,0 +1,8 @@
+{
+  "name": "Folio PDF Editor",
+  "description": "A free, client-side PDF editor to edit text, sign, add shapes and reorder pages without limits or uploads.",
+  "permissions": [],
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
