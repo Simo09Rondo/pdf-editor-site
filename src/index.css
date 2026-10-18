@@ -20,6 +20,9 @@
      Used by the landing/hero only; editor chrome stays neutral. */
   --neon-cyan: #2dd4bf;
   --neon-iris: #6366f1;
+
+  --font-geist-sans: "Geist", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-geist-mono: "Geist Mono", monospace;
 }
 
 @theme inline {

@@ -2,16 +2,15 @@
   "name": "zps",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
-    "dev": "next dev -p 3000 -H 0.0.0.0",
-    "build": "next build",
-    "start": "next start",
+    "dev": "vite --host 0.0.0.0 --port 3000",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0 --port 3000",
     "lint": "eslint",
     "test": "vitest run",
-    "copy-wasm": "node -e \"require('fs').copyFileSync('node_modules/@embedpdf/pdfium/dist/pdfium.wasm','public/pdfium.wasm')\"",
+    "copy-wasm": "node --input-type=module -e \"import fs from 'node:fs'; fs.copyFileSync('node_modules/@embedpdf/pdfium/dist/pdfium.wasm','public/pdfium.wasm')\"",
     "postinstall": "npm run copy-wasm",
-    "deploy": "next build && wrangler deploy",
-    "preview": "next build && wrangler dev",
     "test:e2e": "playwright test"
   },
   "dependencies": {
@@ -41,11 +40,13 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^6.1.2",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
     "playwright": "^1.62.1",
     "tailwindcss": "^4",
     "typescript": "^5",
+    "vite": "^8.3.4",
     "vitest": "^4.1.10",
     "wrangler": "^4.105.0"
   }
