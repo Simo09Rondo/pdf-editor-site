@@ -1,2 +1,0 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/mammoth.browser-B1M38vGC.js","assets/rolldown-runtime-BCiCTKAo.js"])))=>i.map(i=>d[i]);
-import{o as e}from"./rolldown-runtime-BCiCTKAo.js";import{r as t}from"./index-ItmwNktn.js";async function n(n){let r=await t(()=>import(`./mammoth.browser-B1M38vGC.js`).then(t=>e(t.default,1)),__vite__mapDeps([0,1])),{htmlToBlocks:i}=await t(async()=>{let{htmlToBlocks:e}=await import(`./blocks-DTPiI2uU.js`);return{htmlToBlocks:e}},[]),{value:a}=await r.convertToHtml({arrayBuffer:n});return i(a)}export{n as docxToBlocks};
