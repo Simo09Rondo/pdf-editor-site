@@ -6,12 +6,15 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./"),
+      "@": path.resolve(import.meta.dirname, "./"),
     },
   },
   server: {
     host: "0.0.0.0",
     port: 3000,
+    hmr: {
+      overlay: false,
+    },
   },
   preview: {
     host: "0.0.0.0",
