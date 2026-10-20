@@ -46,6 +46,58 @@ export interface SaveInput {
 }
 
 export async function buildPdf({ pages, sourceBytes }: SaveInput): Promise<Uint8Array> {
+  const sourceIds = Object.keys(sourceBytes);
+  const isSingleSource = sourceIds.length === 1;
+  const singleSourceId = sourceIds[0];
+
+  // Check if pages are from this single source in sequential, unchanged order
+  const isSequentialSingleSource =
+    isSingleSource &&
+    pages.length > 0 &&
+    pages.every(
+      (item, idx) => item.sourceId === singleSourceId && item.sourcePageIndex === idx,
+    );
+
+  const hasAnnotations = pages.some((p) => p.annotations && p.annotations.length > 0);
+  const hasRotations = pages.some((p) => (p.rotation || 0) !== 0);
+
+  // Fast path 1: Single source with no structural changes, no annotations, and no rotations.
+  // The PDFium-saved bytes in sourceBytes already contain all text and object edits in-place
+  // with 100% preservation of fonts, glyph mappings, layout, and document structure.
+  if (isSequentialSingleSource && !hasAnnotations && !hasRotations) {
+    const rawBytes = sourceBytes[singleSourceId];
+    if (rawBytes && rawBytes.byteLength > 0) {
+      return rawBytes;
+    }
+  }
+
+  // Fast path 2: Single source with in-place modifications (annotations or rotations only).
+  // Modify the existing document in place rather than reconstructing from scratch via copyPages(),
+  // which prevents corrupting embedded subset fonts, glyph widths, and complex page content.
+  if (isSequentialSingleSource) {
+    try {
+      const out = await PDFDocument.load(sourceBytes[singleSourceId]);
+      const font = await out.embedFont(StandardFonts.Helvetica);
+      const fontBold = await out.embedFont(StandardFonts.HelveticaBold);
+
+      for (let i = 0; i < pages.length; i++) {
+        const item = pages[i];
+        const page = out.getPage(i);
+        if (item.rotation) {
+          page.setRotation(degrees(item.rotation));
+        }
+        const { width: w, height: h } = page.getSize();
+        for (const ann of item.annotations) {
+          await drawAnnotation(out, page, ann, h, w, font, fontBold);
+        }
+      }
+      return await out.save();
+    } catch {
+      // If in-place load fails for any reason, fall through to structural copyPages
+    }
+  }
+
+  // Structural assembly path: Multi-source, page reordering, page insertions, or deletions.
   const out = await PDFDocument.create();
   const font = await out.embedFont(StandardFonts.Helvetica);
   const fontBold = await out.embedFont(StandardFonts.HelveticaBold);
