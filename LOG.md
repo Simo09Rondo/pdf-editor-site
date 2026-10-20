@@ -21,3 +21,30 @@
 - **Next steps:** Continue testing the editor, investigate text positioning and deletion/export problems, and record the results.
 
 ## Day 3 — Day 3: starting Accuracy Lab
+- **It all worked well.
+
+## Day 4 — Accuracy Lab Baseline
+
+| File | Edit worked? | Outside change % | Your rating (1 = same look, 2 = slightly different, 3 = clearly different) | Notes |
+|---|---|---|---|---|
+| 01-arial-letter.pdf | Failed | | | |
+| 02-times-report.pdf | Failed | | | |
+| 03-calibri-resume.pdf | Failed | | | |
+| 04-courier-code.pdf | Failed | | | |
+| 05-invoice-table.pdf | Failed | | | |
+| 06-two-columns.pdf | Failed | | | |
+| 07-canva-flyer.pdf | Failed | | | |
+| 08-scanned-page.pdf | Failed / Scanned — verify | | | |
+| 09-french-accents.pdf | Failed | | | |
+| 10-arabic-page.pdf | Failed | | | |
+
+- **Total tests:** 10
+- **Passed:** 0
+- **Failed:** 10
+- **Scanned:** Record the actual number shown by the Accuracy Lab.
+- **Screenshot:** `baseline-day4.png`
+- **Purpose:** Preserve the initial results before attempting fixes.
+
+
+
+

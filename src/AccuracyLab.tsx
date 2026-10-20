@@ -13,8 +13,6 @@ import {
 } from "lucide-react";
 import { useEditor, settleTextEdits } from "@/lib/store";
 import { PdfiumDoc } from "@/lib/pdf/pdfium/doc";
-import { getPdfiumDoc } from "@/lib/pdf/pdfium/registry";
-import { buildPdf } from "@/lib/pdf/save";
 
 export interface TestResult {
   fileName: string;
@@ -160,17 +158,12 @@ export function AccuracyLab() {
         throw new Error(postEditState.toast.message);
       }
 
-      // 7. Export result in memory using the editor's normal save pipeline
-      const { pages, sources } = useEditor.getState();
-      const sourceBytes: Record<string, Uint8Array> = {};
-      for (const id of Object.keys(sources)) {
-        const docP = getPdfiumDoc(id);
-        sourceBytes[id] = docP ? (await docP).save() : sources[id].bytes;
+      // 7. Export result in memory using the editor's normal save pipeline (no browser download)
+      const { exportPdfBytes } = await import("@/lib/pdf/exportDocument");
+      const exportedBytes = await exportPdfBytes();
+      if (!exportedBytes || exportedBytes.byteLength === 0) {
+        throw new Error("Exported PDF data is empty (0 bytes)");
       }
-      const exportedBytes = await buildPdf({ pages, sourceBytes });
-
-      // Clean up editor store
-      useEditor.getState().reset();
 
       // 8. Render EDITED Page 1 with PDFium at the exact same scale
       const editedDoc = await PdfiumDoc.load(exportedBytes);
@@ -180,6 +173,9 @@ export function AccuracyLab() {
       const editedImgData = editedCtx.getImageData(0, 0, editedCanvas.width, editedCanvas.height);
       const editedImage = editedCanvas.toDataURL("image/png");
       editedDoc.close();
+
+      // Clean up editor store after export and rendering are complete
+      useEditor.getState().reset();
 
       // 9. Compare pixel-by-pixel, ignoring the edited line's bounding box
       const pw = origCanvas.width;
