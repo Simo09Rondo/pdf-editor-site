@@ -83,8 +83,13 @@ export function AccuracyLab() {
   const runSingleTest = useCallback(async (fileName: string): Promise<TestResult> => {
     const startTime = performance.now();
     try {
-      // 1. Fetch file bytes
-      const res = await fetch(`/test-pdfs/${encodeURIComponent(fileName)}`);
+      // 1. Fetch file bytes via secure internal endpoint (octet-stream to prevent IDM / extension interception)
+      let res = await fetch(`/api/test-pdf?file=${encodeURIComponent(fileName)}`, {
+        headers: { "X-Requested-With": "XMLHttpRequest" },
+      });
+      if (!res.ok) {
+        res = await fetch(`/test-pdfs/${encodeURIComponent(fileName)}`);
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch file`);
       const arrayBuffer = await res.arrayBuffer();
       const origBytes = new Uint8Array(arrayBuffer);
