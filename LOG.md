@@ -19,3 +19,5 @@
 - **Build output:** Vite generated the `dist/` folder. The project does not use an `out/` folder for this build.
 - **GitHub synchronization:** Pushed the PDF and font files to GitHub and confirmed that both folders appear in Google AI Studio.
 - **Next steps:** Continue testing the editor, investigate text positioning and deletion/export problems, and record the results.
+
+## Day 3 — Day 3: starting Accuracy Lab
