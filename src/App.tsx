@@ -1,20 +1,29 @@
 import { useState, useEffect } from "react";
 import { Editor } from "@/components/editor/Editor";
 import { AccuracyLab } from "./AccuracyLab";
+import { Licenses } from "./Licenses";
 
 export default function App() {
-  const [isTestRoute, setIsTestRoute] = useState(() => {
-    if (typeof window === "undefined") return false;
+  const [route, setRoute] = useState<"editor" | "test" | "licenses">(() => {
+    if (typeof window === "undefined") return "editor";
     const pathname = window.location.pathname.replace(/\/+$/, "");
     const hash = window.location.hash;
-    return pathname === "/test" || hash === "#/test" || hash === "#test";
+    if (pathname === "/test" || hash === "#/test" || hash === "#test") return "test";
+    if (pathname === "/licenses" || hash === "#/licenses" || hash === "#licenses") return "licenses";
+    return "editor";
   });
 
   useEffect(() => {
     const checkRoute = () => {
       const pathname = window.location.pathname.replace(/\/+$/, "");
       const hash = window.location.hash;
-      setIsTestRoute(pathname === "/test" || hash === "#/test" || hash === "#test");
+      if (pathname === "/test" || hash === "#/test" || hash === "#test") {
+        setRoute("test");
+      } else if (pathname === "/licenses" || hash === "#/licenses" || hash === "#licenses") {
+        setRoute("licenses");
+      } else {
+        setRoute("editor");
+      }
     };
 
     window.addEventListener("popstate", checkRoute);
@@ -25,8 +34,12 @@ export default function App() {
     };
   }, []);
 
-  if (isTestRoute) {
+  if (route === "test") {
     return <AccuracyLab />;
+  }
+
+  if (route === "licenses") {
+    return <Licenses />;
   }
 
   return <Editor />;

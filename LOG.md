@@ -72,6 +72,6 @@ Visual ratings remain pending until the original and edited page images are comp
 - Future improvement: evaluate OCR support for scanned PDFs, including text recognition, position detection, and visually consistent replacement.
 - Note: `robots.txt` does not exist in the project yet; disallow rules for `/test` and `/test-pdfs` must be added in Phase 6.
 
-
+## Day 5: fonts
 
 

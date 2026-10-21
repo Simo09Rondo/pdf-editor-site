@@ -191,7 +191,7 @@ export function EmptyState() {
       </section>
 
       {/* ───────────────── Footer ───────────────── */}
-      <footer className="flex items-center justify-center gap-1.5 border-t border-white/5 px-6 py-5 text-xs text-muted sm:px-10">
+      <footer className="flex items-center justify-center gap-2 border-t border-white/5 px-6 py-5 text-xs text-muted sm:px-10">
         <span>© 2026 Folio</span>
         <span className="text-white/15">@</span>
         <a
@@ -201,6 +201,13 @@ export function EmptyState() {
           className="font-medium text-foreground/70 transition-colors hover:text-foreground"
         >
           ziloris
+        </a>
+        <span className="text-white/15">·</span>
+        <a
+          href="/licenses"
+          className="font-medium text-foreground/70 transition-colors hover:text-foreground"
+        >
+          Licenses
         </a>
       </footer>
     </div>
