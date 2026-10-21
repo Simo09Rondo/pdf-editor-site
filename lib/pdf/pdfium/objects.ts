@@ -100,6 +100,12 @@ function readFontName(I: Pdfium, obj: number): string {
   }
 }
 
+function readFontFlags(I: Pdfium, obj: number): number {
+  const font = I.FPDFTextObj_GetFont(obj);
+  if (!font) return 0;
+  return I.FPDFFont_GetFlags(font);
+}
+
 function readText(I: Pdfium, obj: number, textPage: number): string {
   const len = I.FPDFTextObj_GetText(obj, textPage, 0, 0); // bytes incl. null (UTF-16)
   if (!len) return "";
@@ -137,7 +143,18 @@ export function listPageObjects(doc: PdfiumDoc, pageIndex: number): PageObject[]
       // ever filters what a document arrived with.
       if (!text) continue;
       const m = getMatrix(I, obj);
-      out.push({ index: i, parts: [i], type: "text", bbox, text, fontSize: readFontSize(I, obj, m), color: readFill(I, obj), fontName: readFontName(I, obj), ...readOriginDir(m) });
+      out.push({
+        index: i,
+        parts: [i],
+        type: "text",
+        bbox,
+        text,
+        fontSize: readFontSize(I, obj, m),
+        color: readFill(I, obj),
+        fontName: readFontName(I, obj),
+        fontFlags: readFontFlags(I, obj),
+        ...readOriginDir(m),
+      });
     } else if (type === OBJ_PATH) {
       out.push({ index: i, parts: [i], type: "path", bbox, strokeColor: readStroke(I, obj), strokeWidth: readStrokeWidth(I, obj), fillColor: readFill(I, obj) });
     } else if (type === OBJ_IMAGE) {

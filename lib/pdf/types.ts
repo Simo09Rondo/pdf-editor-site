@@ -161,6 +161,8 @@ export interface TextObject extends PageObjectBase {
   color: RGBA;
   /** Base font name of the run (e.g. "ABCDEF+Arial" for an embedded subset). */
   fontName: string;
+  /** PDF font descriptor flags (bit 1 = FixedPitch, bit 2 = Serif, bit 7 = Italic, etc.). */
+  fontFlags?: number;
   /** Baseline start in PDF user space, from the text matrix translation. */
   origin: { x: number; y: number };
   /** Unit vector along the run's writing direction (unrotated => {x:1, y:0}). */

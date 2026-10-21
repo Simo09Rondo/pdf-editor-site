@@ -4,6 +4,7 @@ import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { Trash2, Type, Square, Image as ImageIcon, Shapes } from "lucide-react";
 import { onFlushTextEdits, trackTextEdit, useEditor } from "@/lib/store";
 import { STANDARD_FONTS, type PageObject, type RGBA } from "@/lib/pdf/types";
+import { detectFont } from "@/lib/pdf/fontDetection";
 
 function toHex({ r, g, b }: RGBA) {
   return "#" + [r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("");
@@ -80,6 +81,8 @@ export function Inspector() {
   const obj: PageObject | undefined = selectedObject
     ? pageObjects[selectedObject.pageId]?.find((o) => o.index === selectedObject.index)
     : undefined;
+
+  const detectedFont = obj?.type === "text" ? detectFont(obj.fontName, obj.fontFlags) : null;
 
   // Local text buffer, re-seeded when the selected object changes (render-phase
   // sync keyed on object identity, so typing isn't clobbered by re-list).
@@ -224,6 +227,26 @@ export function Inspector() {
 
           {obj.type === "text" && selectedObject && (
             <>
+              {detectedFont && (
+                <div
+                  data-testid="font-detection-label"
+                  className="rounded-lg border border-border bg-panel-2 p-2.5 text-xs leading-relaxed"
+                >
+                  <div className="text-muted">
+                    Original font: <span className="font-mono text-foreground font-medium">{detectedFont.originalName}</span>. Replacement:{" "}
+                    <span className="font-semibold text-accent">{detectedFont.replacementFamily}</span> (matches {detectedFont.matchedFamily}).
+                  </div>
+                  {detectedFont.style !== "regular" && (
+                    <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-muted">
+                      <span>Style:</span>
+                      <span className="px-1.5 py-0.5 rounded bg-[#141417] border border-border font-mono text-foreground">
+                        {detectedFont.styleLabel}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="flex flex-col gap-1">
                 <span className="text-xs text-muted">Text</span>
                 <textarea

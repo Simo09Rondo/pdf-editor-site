@@ -41,6 +41,7 @@ export interface TextGroup {
   bbox: PdfBBox;
   fontSize: number;
   fontName: string;
+  fontFlags?: number;
   color: RGBA;
   /** Baseline start of the line, i.e. the origin of its first run. */
   origin: { x: number; y: number };
@@ -198,6 +199,7 @@ function makeGroup(runs: TextObject[]): TextGroup {
     // this means retyping adopts the style the line opens with.
     fontSize: first.fontSize,
     fontName: first.fontName,
+    fontFlags: first.fontFlags,
     color: first.color,
     // The line starts where its first run starts, which is what anything
     // rebuilding or rescaling it has to anchor on.
@@ -263,6 +265,7 @@ export function applyTextGrouping(objects: PageObject[]): PageObject[] {
       text: g.text,
       fontSize: g.fontSize,
       fontName: g.fontName,
+      fontFlags: g.fontFlags,
       color: g.color,
       origin: g.origin,
       dir: g.dir,
