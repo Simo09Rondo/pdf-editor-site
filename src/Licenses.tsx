@@ -6,7 +6,7 @@ export function Licenses() {
   const [activeTab, setActiveTab] = useState<"fonts" | "software">("fonts");
 
   return (
-    <div className="min-h-screen bg-[#06060a] text-foreground p-6 sm:p-10 font-sans">
+    <div className="h-screen overflow-y-auto bg-[#06060a] text-foreground p-6 sm:p-10 font-sans">
       <div className="max-w-5xl mx-auto">
         {/* Navigation & Header */}
         <header className="pb-8 border-b border-[#2a2a30]">

@@ -349,7 +349,7 @@ export function AccuracyLab() {
   });
 
   return (
-    <div className="min-h-screen bg-[#06060a] text-foreground p-6 sm:p-10 font-sans">
+    <div className="h-screen overflow-y-auto bg-[#06060a] text-foreground p-6 sm:p-10 font-sans">
       {/* Top Header */}
       <header className="max-w-7xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between pb-8 border-b border-[#2a2a30] gap-4">
         <div>
