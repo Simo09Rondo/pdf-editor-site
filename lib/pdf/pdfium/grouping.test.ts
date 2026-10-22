@@ -147,6 +147,121 @@ describe("groupTextObjects", () => {
     };
     expect(groupTextObjects([image])).toEqual([]);
   });
+
+  it("correctly groups RTL Arabic runs in descending X reading order", () => {
+    // In Arabic, "في صباح" (On a morning):
+    // First word "في " is at the right (x=150..170).
+    // Second word "صباح" is to its left (x=110..140).
+    const word1 = glyph("في ", 150, 100, 20);
+    const word2 = glyph("صباح", 110, 100, 30);
+    // Order in PDF may be arbitrary; reading order must be "في صباح"
+    expect(linesOf([word1, word2])).toEqual(["في صباح"]);
+    expect(linesOf([word2, word1])).toEqual(["في صباح"]);
+  });
+
+  it("preserves character sequence of segmented Arabic words without inverting them", () => {
+    // "مبكر" segmented into individual glyphs placed right-to-left:
+    // 'م' at x=130..140 (rightmost)
+    // 'ب' at x=120..130
+    // 'ك' at x=110..120
+    // 'ر' at x=100..110 (leftmost)
+    const m = glyph("م", 130, 100, 10);
+    const b = glyph("ب", 120, 100, 10);
+    const k = glyph("ك", 110, 100, 10);
+    const r = glyph("ر", 100, 100, 10);
+    // When grouped, must read "مبكر", NOT "ربكم"
+    expect(linesOf([r, k, b, m])).toEqual(["مبكر"]);
+    expect(linesOf([m, b, k, r])).toEqual(["مبكر"]);
+  });
+
+  it("attaches Arabic combining diacritics to their base consonant without creating separate layers", () => {
+    // Consonant 'ر' with fathatan 'ً' at the same horizontal location
+    const r = glyph("ر", 100, 100, 8);
+    const fathatan = glyph("ً", 102, 100, 4);
+    expect(linesOf([r, fathatan])).toEqual(["رً"]);
+  });
+
+  it("extracts and groups 10-arabic-page.pdf.pdf in correct Arabic reading order", async () => {
+    const fs = await import("node:fs");
+    const { init } = await import("@embedpdf/pdfium");
+
+    const wasmBinary = fs.readFileSync("public/pdfium.wasm");
+    const I = await init({ wasmBinary });
+    I.PDFiumExt_Init();
+
+    const pdfBytes = fs.readFileSync("public/test-pdfs/10-arabic-page.pdf.pdf");
+    const ptr = I.pdfium.wasmExports.malloc(pdfBytes.length);
+    new Uint8Array(I.pdfium.wasmExports.memory.buffer).set(pdfBytes, ptr);
+    const doc = I.FPDF_LoadMemDocument(ptr, pdfBytes.length, "");
+    const page = I.FPDF_LoadPage(doc, 0);
+    const textPage = I.FPDFText_LoadPage(page);
+
+    const count = I.FPDFPage_CountObjects(page);
+    const rawObjs: TextObject[] = [];
+    for (let i = 0; i < count; i++) {
+      const o = I.FPDFPage_GetObject(page, i);
+      if (I.FPDFPageObj_GetType(o) === 1) {
+        const len = I.FPDFTextObj_GetText(o, textPage, 0, 0);
+        if (!len) continue;
+        const buf = I.pdfium.wasmExports.malloc(len);
+        I.FPDFTextObj_GetText(o, textPage, buf, len);
+        const u16 = new Uint16Array(I.pdfium.wasmExports.memory.buffer, buf, len / 2);
+        let s = "";
+        for (let j = 0; j < u16.length && u16[j] !== 0; j++) s += String.fromCharCode(u16[j]);
+        I.pdfium.wasmExports.free(buf);
+
+        const fPtr = I.pdfium.wasmExports.malloc(16);
+        I.FPDFPageObj_GetBounds(o, fPtr, fPtr + 4, fPtr + 8, fPtr + 12);
+        const f32 = new Float32Array(I.pdfium.wasmExports.memory.buffer, fPtr, 4);
+        const bbox = { left: f32[0], bottom: f32[1], right: f32[2], top: f32[3] };
+        I.pdfium.wasmExports.free(fPtr);
+
+        const mPtr = I.pdfium.wasmExports.malloc(24);
+        I.FPDFPageObj_GetMatrix(o, mPtr);
+        const m = Array.from(new Float32Array(I.pdfium.wasmExports.memory.buffer, mPtr, 6));
+        I.pdfium.wasmExports.free(mPtr);
+
+        const [a, b, , , e, f] = m;
+        const l = Math.hypot(a, b) || 1;
+        const dir = { x: a / l, y: b / l };
+
+        rawObjs.push({
+          index: i,
+          parts: [i],
+          type: "text",
+          bbox,
+          text: s,
+          fontSize: 12,
+          color: BLACK,
+          fontName: "Times",
+          origin: { x: e, y: f },
+          dir,
+        });
+      }
+    }
+
+    const groups = groupTextObjects(rawObjs);
+    expect(groups.length).toBeGreaterThan(0);
+
+    // First line must begin with "في صباح" and contain "استيقظ أحمد مبكر" in order
+    const line0 = groups.find((g) => g.text.includes("صباح"));
+    expect(line0).toBeDefined();
+    expect(line0!.text.startsWith("في صباح")).toBe(true);
+    expect(line0!.text.includes("أحمد")).toBe(true);
+    // Must NOT contain the reversed word "اركبم"
+    expect(line0!.text.includes("اركبم")).toBe(false);
+
+    // Second line must contain "جلس يقرأ" and "كتاب"
+    const line1 = groups.find((g) => g.text.includes("يقرأ"));
+    expect(line1).toBeDefined();
+    expect(line1!.text.startsWith("جلس يقرأ")).toBe(true);
+    // Must NOT contain reversed "ا باتك"
+    expect(line1!.text.includes("ا باتك")).toBe(false);
+
+    I.FPDF_ClosePage(page);
+    I.FPDF_CloseDocument(doc);
+    I.pdfium.wasmExports.free(ptr);
+  });
 });
 
 describe("applyTextGrouping", () => {

@@ -64,4 +64,32 @@ describe("in-memory export and buildPdf", () => {
 
     downloadSpy.mockRestore();
   });
+
+  it("buildPdf round-trip for 10-arabic-page.pdf preserves document bytes directly without modifications", async () => {
+    const originalBytes = fs.readFileSync("public/test-pdfs/10-arabic-page.pdf.pdf");
+    const sourceId = "source-arabic";
+
+    const pages: PageItem[] = [
+      {
+        id: "p-arabic",
+        sourceId,
+        sourcePageIndex: 0,
+        rotation: 0,
+        width: 595,
+        height: 842,
+        annotations: [],
+        editVersion: 0,
+      },
+    ];
+
+    const result = await buildPdf({
+      pages,
+      sourceBytes: { [sourceId]: originalBytes },
+    });
+
+    expect(result).toBeDefined();
+    expect(result.byteLength).toBe(originalBytes.byteLength);
+    // Preserves identical original bytes when opened and exported without edits
+    expect(result).toEqual(originalBytes);
+  });
 });

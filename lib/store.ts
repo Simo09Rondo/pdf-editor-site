@@ -23,6 +23,7 @@ import {
   deleteObject as deletePdfObject,
   recreateTextObject,
 } from "./pdf/pdfium/objects";
+import { containsUnsupportedScript } from "./pdf/scriptSupport";
 import type {
   Annotation,
   PageItem,
@@ -536,6 +537,11 @@ export const useEditor = create<EditorState>((set, get) => ({
     // empty lines and writes those. The line keeps the text last applied to
     // it, and the next keystroke carries on from there.
     if (!text.trim()) return index;
+    const entry = entryAt(get, pageId, index);
+    if (!entry || entry.type !== "text") return index;
+    if (containsUnsupportedScript(entry.text) || containsUnsupportedScript(text)) {
+      return index;
+    }
     const parts = partsOf(get, pageId, index);
     // Reflow is deliberately not run on every keystroke, even though it could
     // be. Pouring text through the paragraph as you type moves it between lines
@@ -634,6 +640,8 @@ export const useEditor = create<EditorState>((set, get) => ({
   },
 
   deleteObject: async (pageId, index) => {
+    const entry = entryAt(get, pageId, index);
+    if (entry?.type === "text" && containsUnsupportedScript(entry.text)) return;
     // Descending, because removing an object renumbers every index above it.
     const parts = [...partsOf(get, pageId, index)].sort((a, b) => b - a);
     await mutateObject(get, set, pageId, (doc, pageIndex) => {
@@ -650,6 +658,7 @@ export const useEditor = create<EditorState>((set, get) => ({
     if (!page?.sourceId) return;
     const target = get().pageObjects[pageId]?.find((o) => o.index === index);
     if (!target || target.type !== "text") return;
+    if (containsUnsupportedScript(target.text)) return;
     const sourceId = page.sourceId;
     const docP = getPdfiumDoc(sourceId);
     if (!docP) return;
@@ -897,7 +906,7 @@ interface ReflowPlan {
  * in the replacement (Times is much narrower than Helvetica) let the lines below
  * overrun the column by the difference.
  */
-async function planReflow(
+export async function planReflow(
   get: () => EditorState,
   pageId: string,
   index: number,
@@ -908,6 +917,7 @@ async function planReflow(
   if (!objects) return null;
   const paragraph = paragraphAt(objects, index);
   if (!paragraph) return null;
+  if (paragraph.lines.some((l) => containsUnsupportedScript(l.text))) return null;
 
   const fonts = await loadMetrics();
   // One measurer per line of the tail, in order. Lines added past its end copy

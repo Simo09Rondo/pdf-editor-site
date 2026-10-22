@@ -5,6 +5,7 @@ import { Trash2, Type, Square, Image as ImageIcon, Shapes } from "lucide-react";
 import { onFlushTextEdits, trackTextEdit, useEditor } from "@/lib/store";
 import { STANDARD_FONTS, type PageObject, type RGBA } from "@/lib/pdf/types";
 import { detectFont } from "@/lib/pdf/fontDetection";
+import { containsUnsupportedScript, UNSUPPORTED_SCRIPT_MESSAGE } from "@/lib/pdf/scriptSupport";
 
 function toHex({ r, g, b }: RGBA) {
   return "#" + [r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("");
@@ -121,6 +122,7 @@ export function Inspector() {
   // so clicking page text lands you in the text field without a second click
   // (an image/shape has no editor, so it just stays selected for moving).
   const isText = obj?.type === "text";
+  const isUnsupported = isText && containsUnsupportedScript(obj.text);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
     const ta = textareaRef.current;
@@ -134,11 +136,11 @@ export function Inspector() {
     // that just went away. Blur has already had its chance to commit it.
     pending.current = null;
     session.current = null;
-    if (!isText || !ta) return;
+    if (!isText || !ta || isUnsupported) return;
     ta.focus();
     const end = ta.value.length;
     ta.setSelectionRange(end, end);
-  }, [objKey, isText]);
+  }, [objKey, isText, isUnsupported]);
 
   // Live apply. Typed text reaches the page on the next animation frame rather
   // than after a pause in typing: an apply no longer saves the document, takes
@@ -178,6 +180,7 @@ export function Inspector() {
 
   const pump = () => {
     frame.current = null;
+    if (isUnsupported) return;
     const s = session.current;
     const value = pending.current;
     if (inflight.current || !s || value === null || value === s.applied) return;
@@ -201,6 +204,7 @@ export function Inspector() {
   // it first, even though the field was never blurred.
   const flush = useEffectEvent(() => {
     if (frame.current !== null) cancelAnimationFrame(frame.current);
+    if (isUnsupported) return;
     pump();
   });
   useEffect(() => onFlushTextEdits(() => flush()), []);
@@ -247,12 +251,25 @@ export function Inspector() {
                 </div>
               )}
 
+              {isUnsupported && (
+                <div
+                  data-testid="unsupported-script-message"
+                  className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs font-medium text-amber-200 leading-relaxed"
+                >
+                  {UNSUPPORTED_SCRIPT_MESSAGE}
+                </div>
+              )}
+
               <div className="flex flex-col gap-1">
                 <span className="text-xs text-muted">Text</span>
                 <textarea
                   ref={textareaRef}
+                  dir="auto"
                   value={text}
+                  readOnly={isUnsupported}
+                  aria-readonly={isUnsupported}
                   onChange={(e) => {
+                    if (isUnsupported) return;
                     setText(e.target.value);
                     pending.current = e.target.value;
                     session.current ??= {
@@ -263,6 +280,7 @@ export function Inspector() {
                     scheduleApply();
                   }}
                   onKeyDown={(e) => {
+                    if (isUnsupported) return;
                     // Esc leaves the field (Enter still inserts a newline);
                     // blur commits any pending change, matching on-page text.
                     if (e.key === "Escape") {
@@ -271,6 +289,7 @@ export function Inspector() {
                     }
                   }}
                   onBlur={() => {
+                    if (isUnsupported) return;
                     // Committing is where the paragraph re-wraps. Doing it on
                     // every keystroke would move text between lines under the
                     // caret, so while typing the line just grows.
@@ -291,11 +310,21 @@ export function Inspector() {
                     });
                   }}
                   rows={3}
-                  className="resize-none rounded-md border border-border bg-panel-2 p-2 text-sm text-foreground outline-none focus:border-accent"
+                  className={`resize-none rounded-md border bg-panel-2 p-2 text-sm outline-none ${
+                    isUnsupported
+                      ? "border-border/60 text-muted cursor-not-allowed select-text opacity-85"
+                      : "border-border text-foreground focus:border-accent"
+                  }`}
                 />
-                <span className="text-[11px] text-muted">
-                  Updates the page as you type. The paragraph re-wraps when you leave the field.
-                </span>
+                {isUnsupported ? (
+                  <span className="text-[11px] font-medium text-amber-400/90">
+                    {UNSUPPORTED_SCRIPT_MESSAGE}
+                  </span>
+                ) : (
+                  <span className="text-[11px] text-muted">
+                    Updates the page as you type. The paragraph re-wraps when you leave the field.
+                  </span>
+                )}
               </div>
               <CommitSlider
                 label="Size" min={4} max={96} value={Math.round(obj.fontSize)}
@@ -315,7 +344,9 @@ export function Inspector() {
                     choosing that font again fired no change event at all. */}
                 <select
                   value=""
+                  disabled={isUnsupported}
                   onChange={(e) => {
+                    if (isUnsupported) return;
                     const value = e.target.value;
                     if (value === UPLOAD_FONT) {
                       // Not a font, an action: put the picker back and open the
@@ -326,7 +357,9 @@ export function Inspector() {
                     }
                     if (value) void setObjectFontName(selectedObject.pageId, obj.index, value);
                   }}
-                  className="flex-1 rounded-md border border-border bg-panel-2 px-2 py-1 text-foreground outline-none focus:border-accent"
+                  className={`flex-1 rounded-md border border-border bg-panel-2 px-2 py-1 text-foreground outline-none ${
+                    isUnsupported ? "cursor-not-allowed opacity-50" : "focus:border-accent"
+                  }`}
                 >
                   <option value="" disabled>
                     {obj.fontName || "Replace font…"}
@@ -387,8 +420,17 @@ export function Inspector() {
           )}
 
           <button
-            onClick={() => selectedObject && void deleteObject(selectedObject.pageId, obj.index)}
-            className="mt-2 inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-panel-2 px-3 py-2 text-sm text-red-400 transition hover:bg-red-500/10"
+            onClick={() => {
+              if (isUnsupported) return;
+              if (selectedObject) void deleteObject(selectedObject.pageId, obj.index);
+            }}
+            disabled={isUnsupported}
+            aria-disabled={isUnsupported}
+            className={`mt-2 inline-flex items-center justify-center gap-2 rounded-lg border border-border px-3 py-2 text-sm transition ${
+              isUnsupported
+                ? "bg-panel-2/50 text-muted cursor-not-allowed opacity-50"
+                : "bg-panel-2 text-red-400 hover:bg-red-500/10"
+            }`}
           >
             <Trash2 className="h-4 w-4" /> Delete object
           </button>

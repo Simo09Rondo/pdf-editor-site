@@ -94,14 +94,63 @@ const MAX_OVERLAP_FRACTION = 0.35;
  * through the original. Text that does not overlap all lands in one layer, so
  * for ordinary pages this does nothing.
  */
-function splitLayers(line: TextObject[]): TextObject[][] {
+const RTL_REGEX = /[\u0590-\u05FF\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFC]/;
+const COMBINING_REGEX = /^[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED\u0300-\u036F]+$/;
+
+function isCombiningMark(text: string): boolean {
+  const trimmed = text.trim();
+  return trimmed.length > 0 && COMBINING_REGEX.test(trimmed);
+}
+
+/** Check whether a line follows Right-to-Left reading direction. */
+export function isRtlLine(line: TextObject[]): boolean {
+  if (line.some((o) => o.dir.x < -0.5)) return true;
+  let rtlCount = 0;
+  let ltrCount = 0;
+  for (const o of line) {
+    for (const ch of o.text) {
+      if (RTL_REGEX.test(ch)) rtlCount++;
+      else if (/[A-Za-z]/.test(ch)) ltrCount++;
+    }
+  }
+  return rtlCount > ltrCount;
+}
+
+function gapBetweenRuns(prev: TextObject, next: TextObject, rtl: boolean): number {
+  if (rtl) {
+    return extentOf(prev).min - extentOf(next).max;
+  }
+  return gapBetween(prev, next);
+}
+
+/**
+ * Split a line into draw layers.
+ *
+ * Text stamped on top of other text (faux bold and drop shadows both redraw a
+ * string on itself a hairline apart) interleaves with the original once the line
+ * is in positional order, so grouping the line as one sequence produces a zigzag
+ * of half-words: "bold" drawn twice comes out as b / bo / ol / ld / d.
+ *
+ * Assign each run to the first layer whose last member it does not heavily
+ * overlap. Each layer is then a clean positional sequence that groups on its
+ * own terms, and the stamped copy stays a separate entry instead of being woven
+ * through the original. Text that does not overlap all lands in one layer, so
+ * for ordinary pages this does nothing.
+ */
+function splitLayers(line: TextObject[], rtl = false): TextObject[][] {
   const layers: TextObject[][] = [];
   for (const o of line) {
+    if (isCombiningMark(o.text)) {
+      if (layers.length === 0) layers.push([o]);
+      else layers[0].push(o);
+      continue;
+    }
     const b = extentOf(o);
     const layer = layers.find((runs) => {
       const a = extentOf(runs[runs.length - 1]);
       const narrower = Math.min(a.max - a.min, b.max - b.min);
-      return b.min - a.max > -MAX_OVERLAP_FRACTION * narrower;
+      const gap = rtl ? a.min - b.max : b.min - a.max;
+      return gap > -MAX_OVERLAP_FRACTION * narrower;
     });
     if (layer) layer.push(o);
     else layers.push([o]);
@@ -164,21 +213,21 @@ function clusterLines(texts: TextObject[]): TextObject[][] {
  * space it stands for. A second space run in a row still counts, because the
  * word only ever claims one.
  */
-function joinRuns(runs: TextObject[]): string {
+function joinRuns(runs: TextObject[], rtl = false): string {
   let out = runs[0].text;
   for (let i = 1; i < runs.length; i++) {
     const prev = runs[i - 1];
     const next = runs[i];
     const blank = (t: string) => !t.trim();
     if (blank(next.text) && !blank(prev.text) && /\s$/.test(prev.text)) continue;
-    const wide = gapBetween(prev, next) >= SPACE_EM * Math.max(prev.fontSize, 1);
+    const wide = gapBetweenRuns(prev, next, rtl) >= SPACE_EM * Math.max(prev.fontSize, 1);
     const spelled = /\s$/.test(prev.text) || /^\s/.test(next.text);
     out += wide && !spelled ? ` ${next.text}` : next.text;
   }
   return out;
 }
 
-function makeGroup(runs: TextObject[]): TextGroup {
+function makeGroup(runs: TextObject[], rtl = false): TextGroup {
   const first = runs[0];
   // Accumulate rather than spreading into Math.min/max: a line is short, but it
   // is the same argument-list hazard the ink bounding box was already fixed for.
@@ -191,7 +240,7 @@ function makeGroup(runs: TextObject[]): TextGroup {
   }
   return {
     indices: runs.map((o) => o.index),
-    text: joinRuns(runs),
+    text: joinRuns(runs, rtl),
     bbox,
     // The first run's style, not the most common one, because the first run is
     // the anchor an edit rewrites through: reporting any other style would show
@@ -219,18 +268,32 @@ export function groupTextObjects(objects: PageObject[]): TextGroup[] {
 
   const groups: TextGroup[] = [];
   for (const line of clusterLines(texts)) {
-    line.sort((a, b) => extentOf(a).min - extentOf(b).min); // reading order
-    for (const layer of splitLayers(line)) {
+    const rtl = isRtlLine(line);
+    if (rtl) {
+      // In RTL, reading order advances from right (larger x) to left (smaller x).
+      line.sort((a, b) => {
+        const diff = extentOf(b).max - extentOf(a).max;
+        if (Math.abs(diff) > 0.5) return diff;
+        // Combining mark (e.g. Arabic tashkeel) should follow its base letter
+        if (isCombiningMark(b.text) && !isCombiningMark(a.text)) return -1;
+        if (isCombiningMark(a.text) && !isCombiningMark(b.text)) return 1;
+        return diff;
+      });
+    } else {
+      line.sort((a, b) => extentOf(a).min - extentOf(b).min); // reading order
+    }
+
+    for (const layer of splitLayers(line, rtl)) {
       let block: TextObject[] = [];
       const flush = () => {
-        if (block.length) groups.push(makeGroup(block));
+        if (block.length) groups.push(makeGroup(block, rtl));
         block = [];
       };
       for (const t of layer) {
         const prev = block[block.length - 1];
         // A gap this wide is a gutter, not a space. Everything narrower stays on
         // the line and becomes either a space or nothing when the text is joined.
-        if (prev && gapBetween(prev, t) >= BLOCK_EM * Math.max(prev.fontSize, 1)) {
+        if (prev && gapBetweenRuns(prev, t, rtl) >= BLOCK_EM * Math.max(prev.fontSize, 1)) {
           flush();
         }
         block.push(t);
